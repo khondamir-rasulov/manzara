@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(VIEWER)
+  orgId         String?
+  org           Org?      @relation(fields: [orgId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── Organization ─────────────────────────────────────────────────────────────
+
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  shortName String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  programs         Program[]
+  projects         Project[]        @relation("CoordinatorOrg")
+  executedProjects Project[]        @relation("ExecutorOrg")
+
+  @@map("orgs")
+}
+
+// ─── Program (pipeline config: e.g. "ПКМ 425", "Internal Procurement") ───────
+
+model Program {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  orgId       String
+  org         Org      @relation(fields: [orgId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  stages   Stage[]
+  projects Project[]
+
+  @@map("programs")
+}
+
+// ─── Stage (one step in a pipeline) ──────────────────────────────────────────
+
+model Stage {
+  id         String   @id @default(cuid())
+  name       String
+  order      Int
+  color      String   @default("#6366f1")
+  slaDays    Int      @default(30)
+  isRequired Boolean  @default(true)
+  programId  String
+  program    Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  fields        StageField[]
+  projectStages ProjectStage[]
+
+  @@map("stages")
+}
+
+// ─── Stage Field definition ───────────────────────────────────────────────────
+
+model StageField {
+  id         String    @id @default(cuid())
+  stageId    String
+  stage      Stage     @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  name       String
+  fieldType  FieldType @default(TEXT)
+  isRequired Boolean   @default(false)
+  order      Int       @default(0)
+  options    String?
+
+  values FieldValue[]
+
+  @@map("stage_fields")
+}
+
+// ─── Project ──────────────────────────────────────────────────────────────────
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+  programId      String
+  program        Program       @relation(fields: [programId], references: [id])
+  coordinatorOrgId String?
+  coordinatorOrg   Org?          @relation("CoordinatorOrg", fields: [coordinatorOrgId], references: [id])
+  executorOrgId    String?
+  executorOrg      Org?          @relation("ExecutorOrg", fields: [executorOrgId], references: [id])
+  sector         String?
+  legalBasis     String?
+  deadline       DateTime?
+  status         ProjectStatus @default(ACTIVE)
+  currentStageId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  stages ProjectStage[]
+
+  @@map("projects")
+}
+
+// ─── Project Stage ────────────────────────────────────────────────────────────
+
+model ProjectStage {
+  id          String             @id @default(cuid())
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stageId     String
+  stage       Stage              @relation(fields: [stageId], references: [id])
+  status      ProjectStageStatus @default(NOT_STARTED)
+  enteredAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  fieldValues FieldValue[]
+
+  @@unique([projectId, stageId])
+  @@map("project_stages")
+}
+
+// ─── Field Value ─────────────────────────────────────────────────────────────
+
+model FieldValue {
+  id             String       @id @default(cuid())
+  projectStageId String
+  projectStage   ProjectStage @relation(fields: [projectStageId], references: [id], onDelete: Cascade)
+  fieldId        String
+  field          StageField   @relation(fields: [fieldId], references: [id])
+  value          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([projectStageId, fieldId])
+  @@map("field_values")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum FieldType {
+  TEXT
+  DATE
+  DOCNUMBER
+  DROPDOWN
+  CHECKBOX
+  FILE
+  NUMBER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  ON_HOLD
+}
+
+enum ProjectStageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  RETURNED
+  SKIPPED
+}
