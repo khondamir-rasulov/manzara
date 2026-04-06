@@ -10,7 +10,7 @@ import type { ProjectWithStages } from "@/lib/data";
 
 // ─── Layout constants ──────────────────────────────────────────────────────
 const LEFT_COL = 240;   // px — fixed project name column
-const MONTH_W  = 72;    // px — width per month
+const MONTH_W  = 110;   // px — width per month (wide enough for full month names)
 const ROW_H    = 36;    // px — row height
 const HDR_H    = 48;    // px — header height
 
@@ -56,7 +56,7 @@ function barBorder(deadline: Date | null): string {
 
 function formatMonthYear(date: Date, locale: string): string {
   return date.toLocaleDateString(locale === "uz" ? "uz-UZ" : locale === "ru" ? "ru-RU" : "en-US", {
-    month: "short",
+    month: "long",
     year: "2-digit",
   });
 }
