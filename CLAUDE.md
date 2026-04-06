@@ -2,114 +2,121 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Important — Next.js version**: This project uses Next.js 16 with React 19. APIs and conventions differ from training data. Check `node_modules/next/dist/docs/` before writing any framework-specific code.
-
----
-
 ## Commands
 
 ```bash
-# Development
 npm run dev          # Start dev server (localhost:3000)
-npm run build        # Production build + type-check
+npm run build        # Production build
 npm run lint         # ESLint
-
-# Database (Docker on port 5433 — NOT 5432, which is reserved for local Postgres)
-docker compose up -d               # Start Postgres container
-npm run db:push                    # Push schema changes (no migrations)
-npm run db:seed                    # Seed demo data (30 projects, users, orgs)
-npm run db:studio                  # Prisma Studio GUI
-
-# Type-check only (faster than full build)
-npx tsc --noEmit
+npx tsc --noEmit     # Type-check only — run this after every edit
 ```
 
-**Prerequisites**: `DATABASE_URL` in `.env` must point to port 5433 (Docker maps `5433→5432`). The local system Postgres runs on 5432 — connecting there causes P1010 auth errors.
+No test suite. `npx tsc --noEmit` must pass with zero errors before any task is complete.
 
-Demo credentials after seeding: `admin@manzara.uz / demo1234`, `manager@manzara.uz / demo1234`
+Demo credentials: `admin@manzara.uz / demo1234`
 
 ---
 
 ## Architecture
 
+### Stack
+Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · `motion/react` (Framer Motion) · Recharts · NextAuth v5 (JWT) · `date-fns`
+
 ### Request flow
 
-Every page follows the same pattern: **server component fetches data → passes to `*Client.tsx`**.
+Every page follows the same pattern: **async server component fetches → passes props to `*Client.tsx`**.
 
 ```
 src/app/(app)/dashboard/page.tsx   ← async server component, calls data.ts
-  → DashboardClient.tsx            ← "use client", receives props, renders UI + motion
+  → DashboardClient.tsx            ← "use client", receives props, renders UI
 ```
 
-Server components call `getProjects()` / `getDashboardStats()` / etc. from `src/lib/data.ts`, which wraps Prisma queries. No API routes are used for page data.
+No API routes are used for page data — only for mutations (comments, advance stage).
 
 ### Route groups
 
-- `(app)/` — authenticated pages (Dashboard, Projects, Board, Settings, Project detail). Wrapped by `(app)/layout.tsx` which mounts `<Sidebar>` and `<LanguageProvider>`.
-- `(auth)/` — unauthenticated pages (Login). Has no layout file; login page mounts its own `<LanguageProvider>`.
-- `api/auth/[...nextauth]` — NextAuth handler.
+- `(app)/` — authenticated shell. `(app)/layout.tsx` mounts `<Sidebar>` and `<LanguageProvider>`.
+- `(auth)/` — unauthenticated (login). Login page mounts its own `<LanguageProvider>`.
 
-### Database layer
+### Data layer — demo mode (no database)
 
-- **Prisma 7** with `@prisma/adapter-pg` (pg Pool). The client is **not** the standard HTTP-based one — it uses the TCP adapter directly.
-- Client is instantiated once in `src/lib/prisma.ts` using a `globalThis` singleton (prevents hot-reload connection exhaustion in dev).
-- Schema lives in `prisma/schema.prisma`. **No `DATABASE_URL` in schema** — the URL is injected via `prisma.config.ts` which reads from `process.env.DATABASE_URL`.
-- Generated client outputs to `src/generated/prisma/client` (not the default location). Import from `@/generated/prisma/client`.
+The app runs entirely off static in-memory data. `src/lib/prisma.ts` exists but is unused at runtime.
+
+| File | Role |
+|------|------|
+| `src/lib/demo-data.ts` | 30 projects, 7 pipeline stages, 3 orgs, 2 users. All dates computed relative to `new Date()` at module load so traffic-light colours stay realistic on any deploy date. |
+| `src/lib/data.ts` | Async functions (`getProjects`, `getDashboardStats`, etc.) operating over `DEMO_PROJECTS`. Write operations (`createComment`, `advanceProjectStage`) are no-ops or return stub objects. |
+| `src/lib/auth.ts` | NextAuth JWT. Credentials validated against `DEMO_USERS` in demo-data via bcrypt — no DB. |
+| `src/app/api/projects/…` | All mutation routes return `403 demo mode`. `/api/overdue` reads from `DEMO_PROJECTS`. |
+
+**To change demo projects**: edit `PROJECT_DESCS` in `demo-data.ts`. Use `deadline(N)` helper where `N` is days from now (negative = already overdue).
+
+### Data model
+
+```
+Org → Program → Stage (slaDays, order, StageFields)
+                  ↓
+              Project (currentStageId, status, priority, sector, deadline)
+                  ↓
+           ProjectStage (enteredAt, completedAt, status, fieldValues[])
+```
+
+`getDashboardStats()` computes all dashboard metrics (SLA compliance, priority/executor breakdowns, deadline risk, stage distribution) in one pass over `DEMO_PROJECTS`.
+
+### Traffic light logic
+
+```ts
+// src/lib/utils.ts
+ratio = daysInStage / slaDays
+< 0.5  → "green"
+< 1.0  → "yellow"
+≥ 1.0  → "red"
+```
+
+Used by pipeline bar chart (`Cell` fill), stuck-projects table, and stage badges.
+
+### Key utilities (`src/lib/utils.ts`)
+
+- `daysInStage(enteredAt)` — days from `enteredAt` to now
+- `stageTrafficLight(days, slaDays)` → `"green" | "yellow" | "red"`
+- `priorityBadgeClass(priority)` → Tailwind class string for URGENT/HIGH/NORMAL/LOW
+- `stageBadgeClass(days, slaDays)` → Tailwind class string based on traffic light
 
 ### Auth
 
-NextAuth v5 beta with JWT strategy. `role` and `orgId` are added to the JWT in the `jwt` callback and forwarded to the session. Access them via `(session.user as { role?: string }).role` — they are not typed in the default NextAuth types.
+NextAuth v5 beta with JWT strategy. `role` and `orgId` are added in the `jwt` callback. Access via `(session.user as any).role` — not typed in default NextAuth types.
 
 ### Animations
 
-All animation uses the **`motion`** package (`motion/react`), not `framer-motion`.
+All animation uses **`motion/react`**, not `framer-motion`. Critical rules to avoid TypeScript errors:
 
-Critical rules to avoid TypeScript errors:
-1. Always annotate variant objects: `const x: Variants = { ... }` — never use inferred types.
-2. Never put `transition` inside variant states (`hidden`/`show`). Put transitions on the component itself or in `MotionConfig`.
-3. `ease` values must be strings (`"easeOut"`) not arrays.
+1. Always annotate variant objects: `const x: Variants = { ... }`.
+2. Never put `transition` inside variant states — put it on the component or in `MotionConfig`.
+3. `ease` values must be strings (`"easeOut"`), not arrays.
 
-`MotionProvider` wraps the whole app with `<MotionConfig reducedMotion="user">`.
+`MotionProvider` wraps the app with `<MotionConfig reducedMotion="user">`.
 
 ### Internationalisation
 
-Client-side i18n via React context. Three locales: `en`, `ru`, `uz` (Uzbek Latin).
+Client-side i18n via React context. Three locales: `en`, `ru`, `uz`.
 
-- `src/lib/i18n/index.tsx` — `LanguageProvider`, `useLanguage()`, `td()` helper
-- `src/lib/i18n/locales/{en,ru,uz}.ts` — typed translation objects
-
-Usage in components:
 ```tsx
-const { t, lang, setLang } = useLanguage();
-// UI strings: t.dashboard.title
-// DB-stored data (stage/sector names, statuses): td(t.data.stages, stageName)
+const { t, lang } = useLanguage();
+// UI strings:        t.dashboard.title
+// DB-stored values:  td(t.data.stages, stageName)  // falls back to original string
 ```
 
-`td(map, value)` falls back to the original string if the key isn't in the map. When adding new seeded stage names or sector names, add them to all three locale files under `data.stages` / `data.sectors`.
-
-The `Translations` type is defined in `en.ts` and both `ru.ts` and `uz.ts` implement it (`const ru: Translations = { ... }`). Changing the type requires updating all three locales.
+`td(map, value)` in `src/lib/i18n/index.tsx` translates DB-stored stage names, sectors, statuses, project names. The `Translations` type is defined once in `en.ts` — `ru.ts` and `uz.ts` implement it, so TypeScript enforces completeness. **Adding a key requires updating the type definition and all three locale files.**
 
 Language preference persists in `localStorage` under key `manzara-lang`.
 
 ### Styling
 
-- **Tailwind v4** — `@import "tailwindcss"` replaces the old `@tailwind` directives. PostCSS processes it.
-- Custom CSS variables defined in `:root` in `globals.css` (sidebar colour, brand palette, etc).
-- Fonts loaded via `next/font/google` (`DM_Sans`, `DM_Mono`) in `app/layout.tsx` as CSS variables `--font-dm-sans` / `--font-dm-mono`.
-- **Do not** add `@import url(...)` for Google Fonts to `globals.css` — Tailwind v4's PostCSS expands `@import "tailwindcss"` inline, making any subsequent `@import` a PostCSS error.
+- Tailwind v4: use `@import "tailwindcss"` — not the old `@tailwind` directives.
+- Do not add `@import url(...)` for Google Fonts in `globals.css` (breaks PostCSS).
 - `@custom-variant dark` must come **after** all `@import` lines.
-- Remove `transition-*` Tailwind classes from any element that also uses Motion — they conflict and cause stutter.
+- Remove `transition-*` Tailwind classes from any element also animated by Motion — they conflict.
 
-### Data model summary
+### Deployment
 
-```
-Org → Program → Stage → StageField
-                 ↓
-              Project (has currentStageId, status, sector, legalBasis, deadline)
-                 ↓
-           ProjectStage (enteredAt, completedAt, status)
-                 ↓
-            FieldValue
-```
-
-A **Program** is a named pipeline config (e.g. "ПКМ 425"). It owns an ordered list of **Stages**, each with `slaDays` and typed **StageFields**. A **Project** moves through stages; its current position is `currentStageId`. Each `ProjectStage` row tracks when it entered, when it completed, and holds the field values for that stage.
+Live at **https://manzara.vercel.app**. GitHub: `khondamir-rasulov/manzara`. Push to `main` → auto-redeploy. No environment variables required for demo mode.
