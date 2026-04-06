@@ -3,8 +3,8 @@
  * All data is computed once at module load from the same seed spec as prisma/seed.ts.
  */
 
-// ─── Reference date (when the "seed" was run) ────────────────────────────────
-const REF = new Date("2025-10-01T00:00:00Z");
+// ─── Reference date — always relative to NOW so traffic-light colors stay realistic ───
+const REF = new Date(); // current server time at module load
 
 function daysAgo(days: number): Date {
   return new Date(REF.getTime() - days * 86_400_000);
@@ -118,37 +118,50 @@ type ProjDesc = {
   priority: "URGENT" | "HIGH" | "NORMAL" | "LOW";
 };
 
+// deadline helper: positive = days from now in future, negative = already overdue
+function deadline(daysFromNow: number): Date {
+  return daysFromDate(REF, daysFromNow);
+}
+
 const PROJECT_DESCS: ProjDesc[] = [
-  { id: "p-01",  name: "AI Drug Demand Forecasting System",                              sector: "Healthcare",          executorOrgId: "org-atk",  deadline: new Date("2025-10-01"), currentStageIdx: 1, priority: "URGENT" },
-  { id: "p-02",  name: "Clinical Decision Support Assistant (Top-3 Diagnosis)",          sector: "Healthcare",          executorOrgId: "org-atk",  deadline: new Date("2026-12-01"), currentStageIdx: 2, priority: "HIGH"   },
-  { id: "p-03",  name: "Voice-to-Text Assistant for Medical Records (SVAR)",             sector: "Healthcare",          executorOrgId: "org-raq",  deadline: new Date("2026-03-01"), currentStageIdx: 3, priority: "HIGH"   },
-  { id: "p-04",  name: "CT/X-Ray AI for Lung Pathology Detection",                      sector: "Healthcare",          executorOrgId: "org-atk",  deadline: new Date("2026-10-01"), currentStageIdx: 4, priority: "HIGH"   },
-  { id: "p-05",  name: "AI Mammography for Early Breast Cancer Detection",               sector: "Healthcare",          executorOrgId: "org-raq",  deadline: new Date("2026-12-01"), currentStageIdx: 1, priority: "HIGH"   },
-  { id: "p-06",  name: "Satellite AI Crop Yield Forecasting (Wheat & Cotton)",           sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-11-01"), currentStageIdx: 2, priority: "NORMAL" },
-  { id: "p-07",  name: "Drone AI Land Encroachment Detection System",                   sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-09-01"), currentStageIdx: 5, priority: "NORMAL" },
-  { id: "p-08",  name: "Satellite Pasture Condition Monitoring",                         sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-11-01"), currentStageIdx: 6, priority: "LOW"    },
-  { id: "p-09",  name: "Aerial AI Power Line Inspection System",                        sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-08-01"), currentStageIdx: 3, priority: "NORMAL" },
-  { id: "p-10",  name: "AI Optimal Solar Panel Placement System",                       sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-10-01"), currentStageIdx: 0, priority: "LOW"    },
-  { id: "p-11",  name: "UzFace — Railway Station Face Recognition",                     sector: "Security",            executorOrgId: "org-atk",  deadline: new Date("2026-03-01"), currentStageIdx: 4, priority: "HIGH"   },
-  { id: "p-12",  name: "Computer Vision Traffic Violation Detection",                   sector: "Security",            executorOrgId: "org-raq",  deadline: new Date("2026-07-01"), currentStageIdx: 2, priority: "HIGH"   },
-  { id: "p-13",  name: "Driver Fatigue Detection for Public Transport",                 sector: "Security",            executorOrgId: "org-atk",  deadline: new Date("2026-04-01"), currentStageIdx: 1, priority: "HIGH"   },
-  { id: "p-14",  name: "AI Illegal Procurement Activity Detection",                     sector: "Economy",             executorOrgId: "org-raq",  deadline: new Date("2026-11-01"), currentStageIdx: 3, priority: "NORMAL" },
-  { id: "p-15",  name: "Automated Bank Account Verification for Budget Orgs",           sector: "Economy",             executorOrgId: "org-raq",  deadline: new Date("2026-12-01"), currentStageIdx: 5, priority: "NORMAL" },
-  { id: "p-16",  name: "Banking Sector Fraud Detection System",                         sector: "Economy",             executorOrgId: "org-atk",  deadline: new Date("2026-11-01"), currentStageIdx: 6, priority: "HIGH"   },
-  { id: "p-17",  name: "AIStudy.uz — 1M Users AI Platform",                             sector: "Education",           executorOrgId: "org-atk",  deadline: new Date("2025-10-01"), currentStageIdx: 2, priority: "URGENT" },
-  { id: "p-18",  name: "Legal NLP — Normative Document Classification (Uzbek)",         sector: "Research",            executorOrgId: "org-inno", deadline: new Date("2026-10-01"), currentStageIdx: 0, priority: "LOW"    },
-  { id: "p-19",  name: "AI Assistant for Interdepartmental Document Management",        sector: "E-Government",        executorOrgId: "org-raq",  deadline: new Date("2026-11-01"), currentStageIdx: 4, priority: "NORMAL" },
-  { id: "p-20",  name: "OCR for Uzbek-Language Incoming Documents",                    sector: "E-Government",        executorOrgId: "org-raq",  deadline: new Date("2026-03-01"), currentStageIdx: 3, priority: "NORMAL" },
-  { id: "p-21",  name: "Citizen Media Sentiment Monitoring Platform",                   sector: "Media",               executorOrgId: "org-atk",  deadline: new Date("2026-08-01"), currentStageIdx: 1, priority: "NORMAL" },
-  { id: "p-22",  name: "AI Satellite Image Resolution Enhancement",                     sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-03-01"), currentStageIdx: 2, priority: "NORMAL" },
-  { id: "p-23",  name: "Uzbek Language Corpus for National LLM",                        sector: "Research",            executorOrgId: "org-raq",  deadline: new Date("2026-11-01"), currentStageIdx: 0, priority: "LOW"    },
-  { id: "p-24",  name: "Sign Language Translation Mobile App",                          sector: "Social",              executorOrgId: "org-atk",  deadline: new Date("2026-11-01"), currentStageIdx: 1, priority: "NORMAL" },
-  { id: "p-25",  name: "Aerial AI Road Surface Condition Monitoring",                   sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: new Date("2026-06-01"), currentStageIdx: 3, priority: "NORMAL" },
-  { id: "p-26",  name: "AI Weather Forecasting with Historical Models",                 sector: "Environment",         executorOrgId: "org-raq",  deadline: new Date("2025-09-01"), currentStageIdx: 5, priority: "URGENT" },
-  { id: "p-27",  name: "Statistical Quality Control Using ML",                          sector: "Research",            executorOrgId: "org-inno", deadline: new Date("2026-09-01"), currentStageIdx: 4, priority: "LOW"    },
-  { id: "p-28",  name: "Environmental ML — Atmosphere & Soil Monitoring",               sector: "Environment",         executorOrgId: "org-inno", deadline: new Date("2026-12-01"), currentStageIdx: 2, priority: "LOW"    },
-  { id: "p-29",  name: "Image Processing Web Platform",                                 sector: "Research",            executorOrgId: "org-raq",  deadline: new Date("2026-03-01"), currentStageIdx: 1, priority: "LOW"    },
-  { id: "p-30",  name: "AI Lab Setup at TUIT and Inha University",                     sector: "Education",           executorOrgId: "org-atk",  deadline: new Date("2025-12-01"), currentStageIdx: 6, priority: "URGENT" },
+  // Healthcare
+  { id: "p-01",  name: "AI Drug Demand Forecasting System",                              sector: "Healthcare",          executorOrgId: "org-atk",  deadline: deadline(-15),  currentStageIdx: 1, priority: "URGENT" },
+  { id: "p-02",  name: "Clinical Decision Support Assistant (Top-3 Diagnosis)",          sector: "Healthcare",          executorOrgId: "org-atk",  deadline: deadline(240),  currentStageIdx: 2, priority: "HIGH"   },
+  { id: "p-03",  name: "Voice-to-Text Assistant for Medical Records (SVAR)",             sector: "Healthcare",          executorOrgId: "org-raq",  deadline: deadline(45),   currentStageIdx: 3, priority: "HIGH"   },
+  { id: "p-04",  name: "CT/X-Ray AI for Lung Pathology Detection",                      sector: "Healthcare",          executorOrgId: "org-atk",  deadline: deadline(180),  currentStageIdx: 4, priority: "HIGH"   },
+  { id: "p-05",  name: "AI Mammography for Early Breast Cancer Detection",               sector: "Healthcare",          executorOrgId: "org-raq",  deadline: deadline(270),  currentStageIdx: 1, priority: "HIGH"   },
+  // Aerospace monitoring
+  { id: "p-06",  name: "Satellite AI Crop Yield Forecasting (Wheat & Cotton)",           sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(210),  currentStageIdx: 2, priority: "NORMAL" },
+  { id: "p-07",  name: "Drone AI Land Encroachment Detection System",                   sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(150),  currentStageIdx: 5, priority: "NORMAL" },
+  { id: "p-08",  name: "Satellite Pasture Condition Monitoring",                         sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(300),  currentStageIdx: 6, priority: "LOW"    },
+  { id: "p-09",  name: "Aerial AI Power Line Inspection System",                        sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(120),  currentStageIdx: 3, priority: "NORMAL" },
+  { id: "p-10",  name: "AI Optimal Solar Panel Placement System",                       sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(200),  currentStageIdx: 0, priority: "LOW"    },
+  // Security
+  { id: "p-11",  name: "UzFace — Railway Station Face Recognition",                     sector: "Security",            executorOrgId: "org-atk",  deadline: deadline(-5),   currentStageIdx: 4, priority: "HIGH"   },
+  { id: "p-12",  name: "Computer Vision Traffic Violation Detection",                   sector: "Security",            executorOrgId: "org-raq",  deadline: deadline(90),   currentStageIdx: 2, priority: "HIGH"   },
+  { id: "p-13",  name: "Driver Fatigue Detection for Public Transport",                 sector: "Security",            executorOrgId: "org-atk",  deadline: deadline(25),   currentStageIdx: 1, priority: "HIGH"   },
+  // Economy
+  { id: "p-14",  name: "AI Illegal Procurement Activity Detection",                     sector: "Economy",             executorOrgId: "org-raq",  deadline: deadline(210),  currentStageIdx: 3, priority: "NORMAL" },
+  { id: "p-15",  name: "Automated Bank Account Verification for Budget Orgs",           sector: "Economy",             executorOrgId: "org-raq",  deadline: deadline(270),  currentStageIdx: 5, priority: "NORMAL" },
+  { id: "p-16",  name: "Banking Sector Fraud Detection System",                         sector: "Economy",             executorOrgId: "org-atk",  deadline: deadline(210),  currentStageIdx: 6, priority: "HIGH"   },
+  // Education
+  { id: "p-17",  name: "AIStudy.uz — 1M Users AI Platform",                             sector: "Education",           executorOrgId: "org-atk",  deadline: deadline(-20),  currentStageIdx: 2, priority: "URGENT" },
+  { id: "p-18",  name: "Legal NLP — Normative Document Classification (Uzbek)",         sector: "Research",            executorOrgId: "org-inno", deadline: deadline(180),  currentStageIdx: 0, priority: "LOW"    },
+  // E-Government
+  { id: "p-19",  name: "AI Assistant for Interdepartmental Document Management",        sector: "E-Government",        executorOrgId: "org-raq",  deadline: deadline(210),  currentStageIdx: 4, priority: "NORMAL" },
+  { id: "p-20",  name: "OCR for Uzbek-Language Incoming Documents",                    sector: "E-Government",        executorOrgId: "org-raq",  deadline: deadline(50),   currentStageIdx: 3, priority: "NORMAL" },
+  // Media / Social
+  { id: "p-21",  name: "Citizen Media Sentiment Monitoring Platform",                   sector: "Media",               executorOrgId: "org-atk",  deadline: deadline(120),  currentStageIdx: 1, priority: "NORMAL" },
+  { id: "p-22",  name: "AI Satellite Image Resolution Enhancement",                     sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(40),   currentStageIdx: 2, priority: "NORMAL" },
+  { id: "p-23",  name: "Uzbek Language Corpus for National LLM",                        sector: "Research",            executorOrgId: "org-raq",  deadline: deadline(240),  currentStageIdx: 0, priority: "LOW"    },
+  { id: "p-24",  name: "Sign Language Translation Mobile App",                          sector: "Social",              executorOrgId: "org-atk",  deadline: deadline(220),  currentStageIdx: 1, priority: "NORMAL" },
+  { id: "p-25",  name: "Aerial AI Road Surface Condition Monitoring",                   sector: "Aerospace monitoring",executorOrgId: "org-inno", deadline: deadline(60),   currentStageIdx: 3, priority: "NORMAL" },
+  // Environment
+  { id: "p-26",  name: "AI Weather Forecasting with Historical Models",                 sector: "Environment",         executorOrgId: "org-raq",  deadline: deadline(-30),  currentStageIdx: 5, priority: "URGENT" },
+  { id: "p-27",  name: "Statistical Quality Control Using ML",                          sector: "Research",            executorOrgId: "org-inno", deadline: deadline(160),  currentStageIdx: 4, priority: "LOW"    },
+  { id: "p-28",  name: "Environmental ML — Atmosphere & Soil Monitoring",               sector: "Environment",         executorOrgId: "org-inno", deadline: deadline(280),  currentStageIdx: 2, priority: "LOW"    },
+  { id: "p-29",  name: "Image Processing Web Platform",                                 sector: "Research",            executorOrgId: "org-raq",  deadline: deadline(55),   currentStageIdx: 1, priority: "LOW"    },
+  { id: "p-30",  name: "AI Lab Setup at TUIT and Inha University",                     sector: "Education",           executorOrgId: "org-atk",  deadline: deadline(-10),  currentStageIdx: 6, priority: "URGENT" },
 ];
 
 function buildProject(pd: ProjDesc) {
