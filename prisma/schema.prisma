@@ -24,6 +24,7 @@ model User {
 
   accounts Account[]
   sessions Session[]
+  comments Comment[]
 
   @@map("users")
 }
@@ -145,13 +146,30 @@ model Project {
   legalBasis     String?
   deadline       DateTime?
   status         ProjectStatus @default(ACTIVE)
+  priority       Priority      @default(NORMAL)
   currentStageId String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  stages ProjectStage[]
+  stages   ProjectStage[]
+  comments Comment[]
 
   @@map("projects")
+}
+
+// ─── Comment ──────────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comments")
 }
 
 // ─── Project Stage ────────────────────────────────────────────────────────────
@@ -214,6 +232,13 @@ enum ProjectStatus {
   COMPLETED
   CANCELLED
   ON_HOLD
+}
+
+enum Priority {
+  URGENT
+  HIGH
+  NORMAL
+  LOW
 }
 
 enum ProjectStageStatus {

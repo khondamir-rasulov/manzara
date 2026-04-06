@@ -64,6 +64,16 @@ export function statusLabel(status: string): string {
   return map[status] ?? status;
 }
 
+export function priorityBadgeClass(priority: string): string {
+  const map: Record<string, string> = {
+    URGENT: "bg-red-100 text-red-700 border-red-200",
+    HIGH: "bg-orange-100 text-orange-700 border-orange-200",
+    NORMAL: "bg-slate-100 text-slate-600 border-slate-200",
+    LOW: "bg-blue-50 text-blue-600 border-blue-200",
+  };
+  return map[priority] ?? "bg-slate-100 text-slate-600 border-slate-200";
+}
+
 export function statusColor(status: string): string {
   const map: Record<string, string> = {
     ACTIVE: "text-blue-600 bg-blue-50 border-blue-200",
