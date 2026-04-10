@@ -2,6 +2,7 @@ import { daysInStage } from "@/lib/utils";
 import { differenceInDays } from "date-fns";
 import {
   DEMO_PROJECTS,
+  DEMO_STAGES,
   DEMO_COMPLETED_STAGES,
   DEMO_ORGS,
   DEMO_PROGRAM_FULL,
@@ -75,9 +76,60 @@ export async function updateProjectPriority(_id: string, _priority: string) {
   // Demo mode — no-op
 }
 
-export async function advanceProjectStage(_id: string) {
-  // Demo mode — no-op, return null
-  return null;
+export async function updateProjectStatus(id: string, status: "ACTIVE" | "COMPLETED" | "CANCELLED" | "ON_HOLD") {
+  const project = DEMO_PROJECTS.find((p) => p.id === id);
+  if (!project) return null;
+  project.status = status;
+  return project;
+}
+
+export async function deleteProject(id: string) {
+  const idx = DEMO_PROJECTS.findIndex((p) => p.id === id);
+  if (idx === -1) return false;
+  DEMO_PROJECTS.splice(idx, 1);
+  return true;
+}
+
+export async function advanceProjectStage(id: string) {
+  const project = DEMO_PROJECTS.find((p) => p.id === id);
+  if (!project) return null;
+
+  const currentIdx = DEMO_STAGES.findIndex((s) => s.id === project.currentStageId);
+  if (currentIdx === -1 || currentIdx >= DEMO_STAGES.length - 1) return project; // already at last stage
+
+  const nextStageDef = DEMO_STAGES[currentIdx + 1];
+  const now = new Date();
+
+  // Mark current project stage as completed
+  const currentPS = project.stages.find((ps) => ps.stageId === project.currentStageId);
+  if (currentPS) {
+    currentPS.status = "COMPLETED";
+    currentPS.completedAt = now;
+  }
+
+  // Add the next stage entry
+  project.stages.push({
+    id: `ps-${project.id}-${nextStageDef.id}-${Date.now()}`,
+    projectId: project.id,
+    stageId: nextStageDef.id,
+    status: "IN_PROGRESS",
+    enteredAt: now,
+    completedAt: null,
+    notes: null,
+    stage: {
+      id: nextStageDef.id,
+      name: nextStageDef.name,
+      order: nextStageDef.order,
+      color: nextStageDef.color,
+      slaDays: nextStageDef.slaDays,
+      programId: nextStageDef.programId,
+    },
+    fieldValues: [],
+  });
+
+  project.currentStageId = nextStageDef.id;
+
+  return project;
 }
 
 export async function getDashboardStats(_programId?: string) {

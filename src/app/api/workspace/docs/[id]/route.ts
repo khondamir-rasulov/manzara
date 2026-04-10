@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { updateProjectStatus, deleteProject } from "@/lib/data";
+import { getWorkspaceDoc, updateWorkspaceDoc, deleteWorkspaceDoc } from "@/lib/workspace-data";
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const doc = getWorkspaceDoc(id);
+  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(doc);
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -10,18 +20,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (role === "VIEWER") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const body = await req.json();
-  const { status } = body as { status?: string };
-
-  if (status) {
-    const valid = ["ACTIVE", "COMPLETED", "CANCELLED", "ON_HOLD"];
-    if (!valid.includes(status)) return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    const project = await updateProjectStatus(id, status as any);
-    if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(project);
-  }
-
-  return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
+  const { content, title } = await req.json();
+  const doc = updateWorkspaceDoc(id, content ?? getWorkspaceDoc(id)?.content ?? "", title);
+  if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(doc);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -32,7 +34,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const ok = await deleteProject(id);
+  const ok = deleteWorkspaceDoc(id);
   if (!ok) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

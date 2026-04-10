@@ -12,6 +12,7 @@ import {
   FolderKanban,
   Kanban,
   GanttChartSquare,
+  BookOpen,
   Settings,
   LogOut,
   ChevronRight,
@@ -72,6 +73,7 @@ export function Sidebar() {
     { href: "/projects", label: t.nav.projects, icon: FolderKanban },
     { href: "/board", label: t.nav.board, icon: Kanban },
     { href: "/gantt", label: t.nav.gantt, icon: GanttChartSquare },
+    { href: "/workspace", label: t.nav.workspace, icon: BookOpen },
   ];
 
   return (

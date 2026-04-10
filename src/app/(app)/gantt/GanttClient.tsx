@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -54,11 +54,16 @@ function barBorder(deadline: Date | null): string {
   return "border-emerald-600";
 }
 
+const MONTH_NAMES: Record<string, string[]> = {
+  en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+  ru: ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+  uz: ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"],
+};
+
 function formatMonthYear(date: Date, locale: string): string {
-  return date.toLocaleDateString(locale === "uz" ? "uz-UZ" : locale === "ru" ? "ru-RU" : "en-US", {
-    month: "long",
-    year: "2-digit",
-  });
+  const months = MONTH_NAMES[locale] ?? MONTH_NAMES.en;
+  const year = String(date.getFullYear()).slice(-2);
+  return `${year} ${months[date.getMonth()]}`;
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -70,7 +75,14 @@ interface Props {
 export function GanttClient({ projects }: Props) {
   const { t, lang } = useLanguage();
   const router = useRouter();
+  const leftRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function onRightScroll() {
+    if (leftRef.current && scrollRef.current) {
+      leftRef.current.scrollTop = scrollRef.current.scrollTop;
+    }
+  }
 
   // collapsed sector groups
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -114,10 +126,11 @@ export function GanttClient({ projects }: Props) {
     return Array.from({ length: totalMonths }, (_, i) => addMonths(chartStart, i));
   }, [chartStart, totalMonths]);
 
-  // ── Today line position ─────────────────────────────────────────────────
-  const todayX = useMemo(() => {
+  // ── Today line position — client-only to avoid SSR/hydration mismatch ───
+  const [todayX, setTodayX] = useState<number | null>(null);
+  useEffect(() => {
     const off = monthOffset(new Date(), chartStart);
-    return Math.max(0, Math.min(off * MONTH_W, chartWidth));
+    setTodayX(Math.max(0, Math.min(off * MONTH_W, chartWidth)));
   }, [chartStart, chartWidth]);
 
   // ── Group projects by sector ────────────────────────────────────────────
@@ -177,7 +190,8 @@ export function GanttClient({ projects }: Props) {
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT: sticky name column */}
         <div
-          className="flex-shrink-0 border-r border-slate-200 bg-white overflow-y-auto"
+          ref={leftRef}
+          className="flex-shrink-0 border-r border-slate-200 bg-white overflow-y-hidden"
           style={{ width: LEFT_COL }}
         >
           {/* Header spacer */}
@@ -232,7 +246,7 @@ export function GanttClient({ projects }: Props) {
         </div>
 
         {/* RIGHT: scrollable chart */}
-        <div ref={scrollRef} className="flex-1 overflow-auto">
+        <div ref={scrollRef} className="flex-1 overflow-auto" onScroll={onRightScroll}>
           <div style={{ width: chartWidth, minWidth: "100%" }}>
             {/* Month header */}
             <div
@@ -254,13 +268,15 @@ export function GanttClient({ projects }: Props) {
 
             {/* Chart body — relative container for today line + bars */}
             <div className="relative">
-              {/* Today vertical line */}
-              <div
-                className="absolute top-0 bottom-0 w-px bg-indigo-400 z-20 pointer-events-none"
-                style={{ left: todayX }}
-              >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500" />
-              </div>
+              {/* Today vertical line — client-only, hidden until position is known */}
+              {todayX !== null && (
+                <div
+                  className="absolute top-0 bottom-0 w-px bg-indigo-400 z-20 pointer-events-none"
+                  style={{ left: todayX }}
+                >
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                </div>
+              )}
 
               {/* Rows */}
               {grouped.map(([sector, sectorProjects]) => {

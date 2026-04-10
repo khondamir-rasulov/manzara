@@ -1,10 +1,11 @@
 export type Translations = {
-  nav: { dashboard: string; projects: string; board: string; gantt: string; settings: string; signOut: string };
+  nav: { dashboard: string; projects: string; board: string; gantt: string; workspace: string; settings: string; signOut: string };
   login: { tagline: string; welcome: string; subtitle: string; email: string; password: string; signIn: string; signingIn: string; error: string; demo: string };
   dashboard: { title: string; subtitle: string; totalProjects: string; active: string; completed: string; onHold: string; cancelled: string; pipelineFunnel: string; projectsInStage: string; bottleneckHeatmap: string; avgDaysInStage: string; deadlineRisk: string; due30: string; due60: string; overdue: string; projects: string; executorBreakdown: string; sectorDistribution: string; stageClock: string; daysInStage: string; sla: string; noData: string; clickToFilter: string; projectList: string; clearFilter: string; name: string; stage: string; status: string; executor: string; sector: string; deadline: string; days: string; urgentCount: string; slaRate: string; slaCompliance: string; slaCompliant: string; slaLate: string; slaNoData: string; priorityBreakdown: string; executorPerformance: string; execActive: string; execCompleted: string; execSlaRate: string; execNoData: string };
   projects: { title: string; subtitle: string; newProject: string; name: string; stage: string; status: string; executor: string; sector: string; deadline: string; noProjects: string; active: string; completed: string; onHold: string; cancelled: string; searchPlaceholder: string; allStatus: string; allSectors: string; daysVsNorm: string; priority: string; allPriorities: string };
   board: { title: string; noProjects: string; noPrograms: string; slaLegend: { green: string; yellow: string; red: string }; allPriorities: string; allSectors: string; allOrgs: string; overdueProjects: string; noOverdue: string; overdueBadge: string };
-  project: { backToProjects: string; legalBasis: string; currentStage: string; daysInStage: string; slaTarget: string; days: string; stageTimeline: string; stageHistory: string; fieldsCompleted: string; enteredOn: string; notStarted: string; completed: string; noFields: string; deadline: string; daysElapsed: string; slaProgress: string; slaOf: string; overdueSuffix: string; stageFields: string; fieldsNotFilled: string; notFilled: string; yes: string; no: string; fields: string; editProject: string; advanceStage: string; advanceConfirmTitle: string; advanceConfirmBody: string; cancel: string; save: string; saving: string; creating: string; description: string; descriptionPlaceholder: string; priority: string; selectSector: string; selectExecutor: string; comments: string; commentPlaceholder: string; send: string; noComments: string; status: { ACTIVE: string; COMPLETED: string; ON_HOLD: string; CANCELLED: string } };
+  project: { backToProjects: string; legalBasis: string; currentStage: string; daysInStage: string; slaTarget: string; days: string; stageTimeline: string; stageHistory: string; fieldsCompleted: string; enteredOn: string; notStarted: string; completed: string; noFields: string; deadline: string; daysElapsed: string; slaProgress: string; slaOf: string; overdueSuffix: string; stageFields: string; fieldsNotFilled: string; notFilled: string; yes: string; no: string; fields: string; editProject: string; advanceStage: string; advanceConfirmTitle: string; advanceConfirmBody: string; cancel: string; save: string; saving: string; creating: string; description: string; descriptionPlaceholder: string; priority: string; sectorPlaceholder: string; executorPlaceholder: string; stagesSection: string; stagesHint: string; stageAdd: string; stagePlaceholder: string; stageResetDefault: string; markComplete: string; cancelProject: string; deleteProject: string; deleteConfirmTitle: string; deleteConfirmBody: string; confirmDelete: string; comments: string; commentPlaceholder: string; send: string; noComments: string; notes: string; notesPlaceholder: string; notesSaved: string; tabOverview: string; tabNotes: string; status: { ACTIVE: string; COMPLETED: string; ON_HOLD: string; CANCELLED: string } };
+  workspace: { title: string; subtitle: string; newDoc: string; noDocuments: string; backToWorkspace: string; save: string; saving: string; saved: string; deleteDoc: string; confirmDelete: string; cancel: string; untitled: string; docs: string; folders: { templates: string; normatives: string; legal: string; contacts: string } };
   settings: {
     title: string; subtitle: string;
     tabs: { account: string; pipeline: string; about: string };
@@ -31,8 +32,9 @@ export const en: Translations = {
   nav: {
     dashboard: "Dashboard",
     projects: "Projects",
-    board: "Pipeline Board",
+    board: "Stage Board",
     gantt: "Gantt Chart",
+    workspace: "Workspace",
     settings: "Settings",
     signOut: "Sign out",
   },
@@ -124,7 +126,7 @@ export const en: Translations = {
 
   // Board
   board: {
-    title: "Pipeline Board",
+    title: "Stage Board",
     noProjects: "No projects",
     noPrograms: "No programs found.",
     slaLegend: {
@@ -177,17 +179,56 @@ export const en: Translations = {
     description: "Description",
     descriptionPlaceholder: "Project description…",
     priority: "Priority",
-    selectSector: "Select sector…",
-    selectExecutor: "Select executor…",
+    sectorPlaceholder: "e.g. Healthcare, Finance, Education…",
+    executorPlaceholder: "Organization name…",
+    stagesSection: "Stages",
+    stagesHint: "Define the stages this project will go through",
+    stageAdd: "Add",
+    stagePlaceholder: "New stage name…",
+    stageResetDefault: "Reset to defaults",
     comments: "Comments",
     commentPlaceholder: "Add a comment…",
     send: "Send",
+    markComplete: "Mark as Complete",
+    cancelProject: "Cancel Project",
+    deleteProject: "Delete Project",
+    deleteConfirmTitle: "Delete this project?",
+    deleteConfirmBody: "This action cannot be undone.",
+    confirmDelete: "Delete",
     noComments: "No comments yet.",
+    notes: "Notes",
+    notesPlaceholder: "Write notes about this project…",
+    notesSaved: "Saved",
+    tabOverview: "Overview",
+    tabNotes: "Notes",
     status: {
       ACTIVE: "Active",
       COMPLETED: "Completed",
       ON_HOLD: "On Hold",
       CANCELLED: "Cancelled",
+    },
+  },
+
+  // Workspace
+  workspace: {
+    title: "Workspace",
+    subtitle: "Documents, templates, and resources",
+    newDoc: "New Document",
+    noDocuments: "No documents yet.",
+    backToWorkspace: "Back to Workspace",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved",
+    deleteDoc: "Delete Document",
+    confirmDelete: "Delete",
+    cancel: "Cancel",
+    untitled: "Untitled",
+    docs: "documents",
+    folders: {
+      templates: "Templates",
+      normatives: "Normatives",
+      legal: "Legal Documents",
+      contacts: "Contacts",
     },
   },
 

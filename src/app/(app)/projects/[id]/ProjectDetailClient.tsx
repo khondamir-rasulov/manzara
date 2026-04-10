@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, type Variants } from "motion/react";
@@ -17,8 +17,13 @@ import {
   Layers,
   MapPin,
   MessageSquare,
+  MoreVertical,
   Pencil,
   Send,
+  Trash2,
+  CheckCheck,
+  XCircle,
+  StickyNote,
 } from "lucide-react";
 import {
   cn,
@@ -149,9 +154,15 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
   const router = useRouter();
 
   const allProgramStages = project.program.stages;
-  const currentStage = project.stages.find((ps) => ps.stageId === project.currentStageId);
-  const completedStages = project.stages.filter((ps) => ps.status === "COMPLETED");
-  const inProgressStage = project.stages.find((ps) => ps.status === "IN_PROGRESS");
+
+  // Mutable local state — updated optimistically so UI responds instantly
+  const [stages, setStages] = useState(project.stages);
+  const [currentStageId, setCurrentStageId] = useState(project.currentStageId);
+  const [projStatus, setProjStatus] = useState(project.status);
+
+  const currentStage = stages.find((ps) => ps.stageId === currentStageId);
+  const completedStages = stages.filter((ps) => ps.status === "COMPLETED");
+  const inProgressStage = stages.find((ps) => ps.status === "IN_PROGRESS");
 
   const days = daysInStage(currentStage?.enteredAt);
   const slaDays = currentStage?.stage.slaDays ?? 30;
@@ -162,6 +173,53 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
   const [showEditModal, setShowEditModal] = useState(false);
   const [advanceConfirm, setAdvanceConfirm] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+  const [activeTab, setActiveTab] = useState<"overview" | "notes">("overview");
+  const [notes, setNotes] = useState("");
+  const [notesSaveState, setNotesSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const noteDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load notes on mount
+  useEffect(() => {
+    fetch(`/api/projects/${project.id}/notes`)
+      .then((r) => r.json())
+      .then((d) => setNotes(d.notes ?? ""))
+      .catch(() => {});
+  }, [project.id]);
+
+  function handleNotesChange(val: string) {
+    setNotes(val);
+    if (noteDebounceRef.current) clearTimeout(noteDebounceRef.current);
+    noteDebounceRef.current = setTimeout(async () => {
+      setNotesSaveState("saving");
+      try {
+        await fetch(`/api/projects/${project.id}/notes`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: val }),
+        });
+        setNotesSaveState("saved");
+        setTimeout(() => setNotesSaveState("idle"), 2000);
+      } catch {
+        setNotesSaveState("idle");
+      }
+    }, 1200);
+  }
+
   const [comments, setComments] = useState<Comments>(initialComments);
   const [commentBody, setCommentBody] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
@@ -173,10 +231,62 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
     try {
       const res = await fetch(`/api/projects/${project.id}/advance`, { method: "POST" });
       if (!res.ok) throw new Error("Failed");
-      router.refresh();
+
+      // Optimistic update — move the arrow without any reload
+      const currentIdx = allProgramStages.findIndex((s) => s.id === currentStageId);
+      if (currentIdx !== -1 && currentIdx < allProgramStages.length - 1) {
+        const nextDef = allProgramStages[currentIdx + 1];
+        const now = new Date();
+        setStages((prev) => [
+          ...prev.map((ps) =>
+            ps.stageId === currentStageId
+              ? { ...ps, status: "COMPLETED" as const, completedAt: now }
+              : ps
+          ),
+          {
+            id: `ps-${project.id}-${nextDef.id}-${Date.now()}`,
+            projectId: project.id,
+            stageId: nextDef.id,
+            status: "IN_PROGRESS" as const,
+            enteredAt: now,
+            completedAt: null,
+            notes: null,
+            stage: { id: nextDef.id, name: nextDef.name, order: nextDef.order, color: nextDef.color, slaDays: nextDef.slaDays, programId: nextDef.programId },
+            fieldValues: [],
+          },
+        ]);
+        setCurrentStageId(nextDef.id);
+      }
     } finally {
       setAdvancing(false);
       setAdvanceConfirm(false);
+    }
+  }
+
+  async function handleStatusChange(status: "COMPLETED" | "CANCELLED") {
+    setStatusLoading(true);
+    setMenuOpen(false);
+    setProjStatus(status); // optimistic
+    try {
+      await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      window.location.href = "/projects";
+    } finally {
+      setDeleting(false);
+      setDeleteConfirm(false);
     }
   }
 
@@ -231,18 +341,153 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
             {t.project.backToProjects}
           </Link>
           {canEdit && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition-all cursor-pointer"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              {t.project.editProject}
-            </button>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12, ease: "easeOut" }}
+                    className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-30 overflow-hidden py-1"
+                  >
+                    {/* Edit */}
+                    <button
+                      onClick={() => { setShowEditModal(true); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      <Pencil className="w-4 h-4 text-slate-400" />
+                      {t.project.editProject}
+                    </button>
+
+                    {projStatus === "ACTIVE" && (
+                      <>
+                        <div className="h-px bg-slate-100 mx-3 my-1" />
+                        {/* Mark complete */}
+                        <button
+                          onClick={() => handleStatusChange("COMPLETED")}
+                          disabled={statusLoading}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <CheckCheck className="w-4 h-4" />
+                          {t.project.markComplete}
+                        </button>
+                        {/* Cancel */}
+                        <button
+                          onClick={() => handleStatusChange("CANCELLED")}
+                          disabled={statusLoading}
+                          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          {t.project.cancelProject}
+                        </button>
+                      </>
+                    )}
+
+                    <div className="h-px bg-slate-100 mx-3 my-1" />
+
+                    {/* Delete */}
+                    {!deleteConfirm ? (
+                      <button
+                        onClick={() => setDeleteConfirm(true)}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        {t.project.deleteProject}
+                      </button>
+                    ) : (
+                      <div className="px-4 py-3 space-y-2">
+                        <p className="text-xs text-red-700 font-medium">{t.project.deleteConfirmBody}</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="flex-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 py-1.5 rounded-lg cursor-pointer disabled:opacity-50 transition-colors"
+                          >
+                            {deleting ? "…" : t.project.confirmDelete}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(false)}
+                            className="flex-1 text-xs text-slate-600 hover:text-slate-800 border border-slate-200 py-1.5 rounded-lg cursor-pointer transition-colors"
+                          >
+                            {t.project.cancel}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </motion.div>
 
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 mb-5 border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+              activeTab === "overview"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            {t.project.tabOverview}
+          </button>
+          <button
+            onClick={() => setActiveTab("notes")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+              activeTab === "notes"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <StickyNote className="w-4 h-4" />
+            {t.project.tabNotes}
+          </button>
+        </div>
+
+        {/* Notes tab */}
+        {activeTab === "notes" && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <StickyNote className="w-4 h-4 text-slate-400" />
+                {t.project.notes}
+              </h2>
+              <AnimatePresence mode="wait">
+                {notesSaveState === "saving" && (
+                  <motion.span key="saving" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs text-slate-400">
+                    {t.workspace.saving}
+                  </motion.span>
+                )}
+                {notesSaveState === "saved" && (
+                  <motion.span key="saved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs text-emerald-600 font-medium">
+                    {t.project.notesSaved}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
+            <textarea
+              value={notes}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              disabled={!canEdit}
+              placeholder={t.project.notesPlaceholder}
+              className="w-full min-h-[50vh] text-sm text-slate-700 leading-relaxed focus:outline-none resize-none font-mono bg-slate-50 rounded-lg p-4 border border-slate-100 focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-colors disabled:opacity-60"
+            />
+          </div>
+        )}
+
         {/* Two-column layout */}
-        <div className="grid grid-cols-3 gap-5 items-start">
+        {activeTab === "overview" && <div className="grid grid-cols-3 gap-5 items-start">
 
           {/* ── LEFT: main content (2/3) ── */}
           <motion.div variants={containerVariants} initial="hidden" animate="show" className="col-span-2 space-y-5">
@@ -253,8 +498,8 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl font-semibold text-slate-900 leading-tight">{td(t.data.projectNames, project.name)}</h1>
-                  <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", statusColor(project.status))}>
-                    {td(t.data.statusLabels, project.status)}
+                  <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", statusColor(projStatus))}>
+                    {td(t.data.statusLabels, projStatus)}
                   </span>
                   <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full border", priorityBadgeClass(project.priority))}>
                     {td(t.data.priorityLabels, project.priority)}
@@ -275,7 +520,7 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
           </motion.div>
 
           {/* Advance Stage */}
-          {canEdit && project.status === "ACTIVE" && inProgressStage && (
+          {canEdit && projStatus === "ACTIVE" && inProgressStage && (
             <motion.div variants={itemVariants}>
               <AnimatePresence mode="wait">
                 {!advanceConfirm ? (
@@ -332,7 +577,7 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
             <div className="overflow-x-auto pb-2">
               <div className="flex items-start gap-0 min-w-max">
                 {allProgramStages.map((programStage, idx) => {
-                  const projectStage = project.stages.find((ps) => ps.stageId === programStage.id);
+                  const projectStage = stages.find((ps) => ps.stageId === programStage.id);
                   const stageStatus = projectStage?.status ?? "NOT_STARTED";
                   const isCompleted = stageStatus === "COMPLETED";
                   const isInProgress = stageStatus === "IN_PROGRESS";
@@ -385,7 +630,7 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
           </motion.div>
 
           {/* Current Stage Card */}
-          {project.status === "ACTIVE" && inProgressStage && (
+          {projStatus === "ACTIVE" && inProgressStage && (
             <motion.div variants={itemVariants}>
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ borderLeft: `4px solid ${inProgressStage.stage.color}` }}>
                 <div className="p-5">
@@ -529,7 +774,7 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
             </div>
 
             {/* Current stage quick stats (if active) */}
-            {project.status === "ACTIVE" && inProgressStage && (
+            {projStatus === "ACTIVE" && inProgressStage && (
               <div className="bg-white rounded-xl border border-slate-200 p-4" style={{ borderLeft: `4px solid ${inProgressStage.stage.color}` }}>
                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">{t.project.currentStage}</div>
                 <div className="text-sm font-medium text-slate-800 mb-3 leading-snug">{td(t.data.stages, inProgressStage.stage.name)}</div>
@@ -613,7 +858,7 @@ export function ProjectDetailClient({ project, initialComments, orgs, defaultPro
             </div>
           </motion.div>
 
-        </div>{/* end grid */}
+        </div>}{/* end grid / overview tab */}
       </div>
     </>
   );
